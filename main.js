@@ -18,9 +18,22 @@ const player = {
   gravity: 1.5
 };
 
+const bullets = []; // Mermileri tutan dizi
+
 const keys = {};
 document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
 document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+// Sol tıkla ateş et
+document.addEventListener('mousedown', () => {
+  const bullet = {
+    x: player.x + 32, // silahın ucundan çıkacak
+    y: player.y + 20,
+    speed: 10,
+    radius: 4
+  };
+  bullets.push(bullet);
+});
 
 function update() {
   if (keys['a']) player.x -= player.speed;
@@ -39,6 +52,16 @@ function update() {
     player.dy = 0;
     player.jumping = false;
   }
+
+  // Mermileri güncelle
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    bullets[i].x += bullets[i].speed;
+
+    // Ekrandan çıkan mermiyi sil
+    if (bullets[i].x > canvas.width) {
+      bullets.splice(i, 1);
+    }
+  }
 }
 
 function draw() {
@@ -48,26 +71,34 @@ function draw() {
   ctx.fillStyle = '#444';
   ctx.fillRect(0, groundY, canvas.width, groundHeight);
 
-  // Çöp adam: kafa
+  // Çöp adam - kafa
   ctx.fillStyle = 'yellow';
   ctx.beginPath();
   ctx.arc(player.x + 10, player.y, 10, 0, Math.PI * 2);
   ctx.fill();
 
-  // gövde
+  // Gövde
   ctx.fillRect(player.x + 8, player.y + 10, 4, 30);
 
-  // kollar
+  // Kollar
   ctx.fillRect(player.x, player.y + 20, 8, 4);           // sol kol
   ctx.fillRect(player.x + 12, player.y + 20, 8, 4);      // sağ kol
 
-  // silah (P250)
+  // Silah (P250)
   ctx.fillStyle = 'gray';
-  ctx.fillRect(player.x + 20, player.y + 18, 12, 6);     // P250 sağ elde
+  ctx.fillRect(player.x + 20, player.y + 18, 12, 6);
 
-  // bacaklar
+  // Bacaklar
   ctx.fillStyle = 'yellow';
   ctx.fillRect(player.x + 5, player.y + 40, 4, 10);
+
+  // Mermiler
+  ctx.fillStyle = 'orange';
+  bullets.forEach(bullet => {
+    ctx.beginPath();
+    ctx.arc(bullet.x, bullet.y, bullet.radius, 0, Math.PI * 2);
+    ctx.fill();
+  });
 }
 
 function loop() {
