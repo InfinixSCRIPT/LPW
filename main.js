@@ -1,123 +1,186 @@
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-
+// Ana karakter ve oyun dünyasının temelini oluşturuyoruz
+const canvas = document.createElement('canvas');
+document.body.style.margin = 0;
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
+document.body.appendChild(canvas);
+const ctx = canvas.getContext('2d');
 
-const groundHeight = 10;
-const groundY = canvas.height - groundHeight;
-
-let cameraX = 0;
+let keys = {};
+let bullets = [];
+let loots = [];
+let buildings = [];
 
 const player = {
   x: 100,
-  y: groundY - 60,
-  width: 20,
+  y: canvas.height - 150,
+  width: 30,
   height: 50,
-  dx: 0,
-  dy: 0,
+  color: 'yellow',
   speed: 5,
+  vx: 0,
+  vy: 0,
   jumping: false,
-  gravity: 1.5
+  gravity: 0.5,
+  jumpPower: -10,
+  onGround: false,
+  inventory: []
 };
 
-const keys = {};
-document.addEventListener("keydown", (e) => (keys[e.key.toLowerCase()] = true));
-document.addEventListener("keyup", (e) => (keys[e.key.toLowerCase()] = false));
+const camera = {
+  x: 0,
+  y: 0
+};
 
-const buildings = [];
-
-function generateBuilding(xPos) {
+function createBuilding(x) {
   const floors = 3;
-  const floorHeight = 80;
-  const width = 100;
-  const lootTypes = ["🎒", "🪖", "🧰"]; // çanta, kask, set
-
-  const loot = lootTypes[Math.floor(Math.random() * lootTypes.length)];
-
-  return {
-    x: xPos,
-    width: width,
-    floors: floors,
-    floorHeight: floorHeight,
-    loot: loot
+  const floorHeight = 100;
+  const width = 80;
+  const height = floors * floorHeight;
+  let building = {
+    x,
+    y: canvas.height - height - 50,
+    width,
+    height,
+    floors,
+    loots: [],
+    stairs: []
   };
+  for (let i = 0; i < floors; i++) {
+    const hasLoot = Math.random() < 0.6;
+    if (hasLoot) {
+      building.loots.push({
+        x: x + 20,
+        y: canvas.height - 50 - i * floorHeight - 60,
+        width: 20,
+        height: 20,
+        type: ['çanta', 'kask', 'ayakkabı'][Math.floor(Math.random() * 3)],
+        collected: false
+      });
+    }
+    building.stairs.push({
+      x: x + width - 10,
+      y: canvas.height - 50 - (i + 1) * floorHeight,
+      width: 10,
+      height: floorHeight
+    });
+  }
+  return building;
 }
 
-// Başlangıçta birkaç bina ekle
 for (let i = 0; i < 10; i++) {
-  buildings.push(generateBuilding(i * 160));
+  buildings.push(createBuilding(i * 160));
 }
+
+window.addEventListener('keydown', (e) => {
+  keys[e.key] = true;
+});
+
+window.addEventListener('keyup', (e) => {
+  keys[e.key] = false;
+});
+
+window.addEventListener('blur', () => {
+  keys = {}; // Sekme değişince tüm tuşlar bırakılmış sayılır
+});
+
+canvas.addEventListener('click', () => {
+  bullets.push({
+    x: player.x + player.width / 2,
+    y: player.y + player.height / 2,
+    vx: 10,
+    vy: 0
+  });
+});
 
 function update() {
   // Hareket
-  if (keys["a"]) player.x -= player.speed;
-  if (keys["d"]) player.x += player.speed;
+  if (keys['a']) player.vx = -player.speed;
+  else if (keys['d']) player.vx = player.speed;
+  else player.vx = 0;
 
-  if (keys[" "] && !player.jumping) {
-    player.dy = -20;
+  if (keys[' '] && player.onGround) {
+    player.vy = player.jumpPower;
     player.jumping = true;
+    player.onGround = false;
   }
 
-  player.dy += player.gravity;
-  player.y += player.dy;
+  player.vy += player.gravity;
+  player.x += player.vx;
+  player.y += player.vy;
 
-  if (player.y + player.height >= groundY) {
-    player.y = groundY - player.height;
-    player.dy = 0;
-    player.jumping = false;
+  // Yere çarpma
+  if (player.y + player.height >= canvas.height - 50) {
+    player.y = canvas.height - 50 - player.height;
+    player.vy = 0;
+    player.onGround = true;
   }
 
   // Kamera takibi
-  cameraX = player.x - canvas.width / 2;
+  camera.x = player.x - canvas.width / 2 + player.width / 2;
 
-  // Sonsuz bina oluşturma
-  const lastBuilding = buildings[buildings.length - 1];
-  if (lastBuilding.x - cameraX < canvas.width) {
-    buildings.push(generateBuilding(lastBuilding.x + 160));
+  // Loot alma
+  if (keys['e']) {
+    buildings.forEach(b => {
+      b.loots.forEach(l => {
+        if (!l.collected &&
+            player.x + player.width > l.x &&
+            player.x < l.x + l.width &&
+            player.y + player.height > l.y &&
+            player.y < l.y + l.height) {
+          l.collected = true;
+          player.inventory.push(l.type);
+        }
+      });
+    });
   }
+
+  // Mermi güncelleme
+  bullets.forEach(b => {
+    b.x += b.vx;
+  });
+
+  bullets = bullets.filter(b => b.x < camera.x + canvas.width);
 }
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.translate(-camera.x, -camera.y);
 
   // Zemin
-  ctx.fillStyle = "#444";
-  ctx.fillRect(0, groundY, canvas.width, groundHeight);
+  ctx.fillStyle = 'gray';
+  ctx.fillRect(camera.x, canvas.height - 50, 10000, 50);
 
-  // Evler
-  buildings.forEach((building) => {
-    for (let i = 0; i < building.floors; i++) {
-      const bx = building.x - cameraX;
-      const by = groundY - (i + 1) * building.floorHeight;
+  // Oyuncu
+  ctx.fillStyle = player.color;
+  ctx.fillRect(player.x, player.y, player.width, player.height);
 
-      ctx.fillStyle = "#999";
-      ctx.fillRect(bx, by, building.width, building.floorHeight - 5);
-
-      // Merdiven
-      ctx.fillStyle = "#222";
-      ctx.fillRect(bx + building.width - 10, by + 10, 5, building.floorHeight - 25);
-
-      // Loot (örnek emoji)
-      if (i === 1) {
-        ctx.font = "20px Arial";
-        ctx.fillText(building.loot, bx + 20, by + 40);
+  // Binalar
+  buildings.forEach(b => {
+    ctx.fillStyle = 'lightblue';
+    ctx.fillRect(b.x, b.y, b.width, b.height);
+    b.stairs.forEach(s => {
+      ctx.fillStyle = 'brown';
+      ctx.fillRect(s.x, s.y, s.width, s.height);
+    });
+    b.loots.forEach(l => {
+      if (!l.collected) {
+        ctx.fillStyle = 'orange';
+        ctx.fillRect(l.x, l.y, l.width, l.height);
+        ctx.fillStyle = 'black';
+        ctx.fillText(`E: ${l.type}`, l.x - 10, l.y - 5);
       }
-    }
+    });
   });
 
-  // Oyuncu (çöp adam)
-  ctx.fillStyle = "yellow";
-  ctx.beginPath();
-  ctx.arc(player.x - cameraX + 10, player.y, 10, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillRect(player.x - cameraX + 8, player.y + 10, 4, 30); // gövde
-  ctx.fillRect(player.x - cameraX, player.y + 20, 8, 4); // sol kol
-  ctx.fillRect(player.x - cameraX + 12, player.y + 20, 8, 4); // sağ kol
-  ctx.fillStyle = "gray";
-  ctx.fillRect(player.x - cameraX + 20, player.y + 18, 12, 6); // p250
-  ctx.fillStyle = "yellow";
-  ctx.fillRect(player.x - cameraX + 5, player.y + 40, 4, 10); // bacak
+  // Mermiler
+  ctx.fillStyle = 'orange';
+  bullets.forEach(b => {
+    ctx.fillRect(b.x, b.y, 10, 4);
+  });
+
+  ctx.restore();
 }
 
 function loop() {
@@ -125,5 +188,4 @@ function loop() {
   draw();
   requestAnimationFrame(loop);
 }
-
 loop();
