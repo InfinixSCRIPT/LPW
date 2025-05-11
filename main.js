@@ -1,10 +1,13 @@
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
 const groundHeight = 10;
 const groundY = canvas.height - groundHeight;
+
+let cameraX = 0;
 
 const player = {
   x: 100,
@@ -18,28 +21,40 @@ const player = {
   gravity: 1.5
 };
 
-const bullets = [];
-
 const keys = {};
-document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
-document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+document.addEventListener("keydown", (e) => (keys[e.key.toLowerCase()] = true));
+document.addEventListener("keyup", (e) => (keys[e.key.toLowerCase()] = false));
 
-document.addEventListener('mousedown', () => {
-  const bullet = {
-    x: player.x + 32,
-    y: player.y + 20,
-    speed: 10,
-    width: 12,
-    height: 4
+const buildings = [];
+
+function generateBuilding(xPos) {
+  const floors = 3;
+  const floorHeight = 80;
+  const width = 100;
+  const lootTypes = ["🎒", "🪖", "🧰"]; // çanta, kask, set
+
+  const loot = lootTypes[Math.floor(Math.random() * lootTypes.length)];
+
+  return {
+    x: xPos,
+    width: width,
+    floors: floors,
+    floorHeight: floorHeight,
+    loot: loot
   };
-  bullets.push(bullet);
-});
+}
+
+// Başlangıçta birkaç bina ekle
+for (let i = 0; i < 10; i++) {
+  buildings.push(generateBuilding(i * 160));
+}
 
 function update() {
-  if (keys['a']) player.x -= player.speed;
-  if (keys['d']) player.x += player.speed;
+  // Hareket
+  if (keys["a"]) player.x -= player.speed;
+  if (keys["d"]) player.x += player.speed;
 
-  if (keys[' '] && !player.jumping) {
+  if (keys[" "] && !player.jumping) {
     player.dy = -20;
     player.jumping = true;
   }
@@ -53,11 +68,13 @@ function update() {
     player.jumping = false;
   }
 
-  for (let i = bullets.length - 1; i >= 0; i--) {
-    bullets[i].x += bullets[i].speed;
-    if (bullets[i].x > canvas.width) {
-      bullets.splice(i, 1);
-    }
+  // Kamera takibi
+  cameraX = player.x - canvas.width / 2;
+
+  // Sonsuz bina oluşturma
+  const lastBuilding = buildings[buildings.length - 1];
+  if (lastBuilding.x - cameraX < canvas.width) {
+    buildings.push(generateBuilding(lastBuilding.x + 160));
   }
 }
 
@@ -65,35 +82,42 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   // Zemin
-  ctx.fillStyle = '#444';
+  ctx.fillStyle = "#444";
   ctx.fillRect(0, groundY, canvas.width, groundHeight);
 
-  // Çöp adam - kafa
-  ctx.fillStyle = 'yellow';
-  ctx.beginPath();
-  ctx.arc(player.x + 10, player.y, 10, 0, Math.PI * 2);
-  ctx.fill();
+  // Evler
+  buildings.forEach((building) => {
+    for (let i = 0; i < building.floors; i++) {
+      const bx = building.x - cameraX;
+      const by = groundY - (i + 1) * building.floorHeight;
 
-  // Gövde
-  ctx.fillRect(player.x + 8, player.y + 10, 4, 30);
+      ctx.fillStyle = "#999";
+      ctx.fillRect(bx, by, building.width, building.floorHeight - 5);
 
-  // Kollar
-  ctx.fillRect(player.x, player.y + 20, 8, 4);
-  ctx.fillRect(player.x + 12, player.y + 20, 8, 4);
+      // Merdiven
+      ctx.fillStyle = "#222";
+      ctx.fillRect(bx + building.width - 10, by + 10, 5, building.floorHeight - 25);
 
-  // Silah (P250)
-  ctx.fillStyle = 'gray';
-  ctx.fillRect(player.x + 20, player.y + 18, 12, 6);
-
-  // Bacaklar
-  ctx.fillStyle = 'yellow';
-  ctx.fillRect(player.x + 5, player.y + 40, 4, 10);
-
-  // Mermiler
-  bullets.forEach(bullet => {
-    ctx.fillStyle = 'orange';
-    ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+      // Loot (örnek emoji)
+      if (i === 1) {
+        ctx.font = "20px Arial";
+        ctx.fillText(building.loot, bx + 20, by + 40);
+      }
+    }
   });
+
+  // Oyuncu (çöp adam)
+  ctx.fillStyle = "yellow";
+  ctx.beginPath();
+  ctx.arc(player.x - cameraX + 10, player.y, 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(player.x - cameraX + 8, player.y + 10, 4, 30); // gövde
+  ctx.fillRect(player.x - cameraX, player.y + 20, 8, 4); // sol kol
+  ctx.fillRect(player.x - cameraX + 12, player.y + 20, 8, 4); // sağ kol
+  ctx.fillStyle = "gray";
+  ctx.fillRect(player.x - cameraX + 20, player.y + 18, 12, 6); // p250
+  ctx.fillStyle = "yellow";
+  ctx.fillRect(player.x - cameraX + 5, player.y + 40, 4, 10); // bacak
 }
 
 function loop() {
